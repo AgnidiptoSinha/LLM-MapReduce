@@ -27,7 +27,7 @@ object main {
 
     // Step 1: Tokenization with JTokkit and sliding window
     val tokenizer = new Tokenize()
-    val (encoding, tokenIds) = tokenizer.getTokens(inputText)
+    val (encoding, tokenIds) = tokenizer.getEncodingAndTokens(inputText)
 
     val windowsGenerator = new GetWindows()
     val (windows, vocabSize) = windowsGenerator.getWindows(tokenIds, windowSize, stride)
