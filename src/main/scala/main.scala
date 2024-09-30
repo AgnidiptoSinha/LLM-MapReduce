@@ -2,24 +2,13 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import helpers.{GetWindows, Tokenize, LearnEmbeddings}
+import utils._
 
 object main {
 
-  private def readTextFile(): String = {
-    try {
-      val path = Paths.get(".\\text.txt")
-      new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
-    } catch {
-      case e: Exception =>
-        println(e)
-        println(s"Error reading file: ${e.getMessage}")
-        ""
-    }
-  }
-
   def main(args: Array[String]): Unit = {
     // Sample input text (in a real scenario, this would be a large corpus)
-    val inputText = readTextFile().stripMargin
+    val inputText = TextFile.getTextFile.stripMargin
 
     // Tokenization and sliding window parameters
     val windowSize = 8
@@ -43,7 +32,7 @@ object main {
 
     println(embeddings)
 
-    
+
   }
 
 }

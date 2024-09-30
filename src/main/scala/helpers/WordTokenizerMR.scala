@@ -8,6 +8,7 @@ import org.apache.hadoop.mapreduce.{Job, Mapper, Reducer}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat
 import helpers.Tokenize
+import utils._
 
 import java.lang.Iterable
 import collection.JavaConverters._
@@ -119,8 +120,8 @@ object WordCountRunner {
   }
 
   def main(args: Array[String]): Unit = {
-    val inputString = "This is a Scala test for MapReduce. This."
-    println(s"Received input string: $inputString")  // Debug log
+    val inputString = TextFile.getTextFile
+    println("Text File read")  // Debug log
 
     try {
       // Create a temporary input file
@@ -157,7 +158,7 @@ object WordCountRunner {
       inputFile.delete()
       outputDir.listFiles().foreach(_.delete())
       outputDir.delete()
-      convertToCsv()
+//      convertToCsv()
     } catch {
       case e: Exception =>
         println(s"An error occurred in main: ${e.getMessage}")

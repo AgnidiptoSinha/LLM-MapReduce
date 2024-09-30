@@ -11,24 +11,9 @@ import scala.collection.mutable
 import scala.io.Source
 import java.io.{File, PrintWriter}
 import scala.collection.JavaConverters._
+import utils._
 
 object SimilarityMR {
-
-  def getTokenEmbeddings: (Seq[Int], mutable.Map[Int, Seq[Float]]) = {
-    val file = Source.fromFile("./embeddings_output/part-r-00000")
-    val lines = file.getLines().toList
-    file.close()
-
-    val embeddingsHashmap = mutable.Map.empty[Int, Seq[Float]]
-    lines.foreach( line => {
-      val arr = line.split(",")
-      val token = arr(1).toInt
-      val embeddings = arr.slice(2, arr.length).map(_.toFloat).toSeq
-      embeddingsHashmap.put(token, embeddings)
-    })
-
-    (embeddingsHashmap.keys.toSeq, embeddingsHashmap)
-  }
 
   class SimilarityMapper extends Mapper[Object, Text, IntWritable, Text] {
 
@@ -36,7 +21,7 @@ object SimilarityMR {
     var allTokenEmbeddings: mutable.Map[Int, Seq[Float]] = _
 
     override def setup(context: Mapper[Object, Text, IntWritable, Text]#Context): Unit = {
-      val (_, tokenEmbeddingsMap) = getTokenEmbeddings
+      val (_, tokenEmbeddingsMap) = TokenEmbeddings.getTokenEmbeddings
       allTokenEmbeddings = tokenEmbeddingsMap
     }
 
@@ -53,9 +38,9 @@ object SimilarityMR {
     }
   }
 
-  class SimilarityReducer extends Reducer[IntWritable, Text, IntWritable, Text] {
+  class SimilarityReducer extends Reducer[IntWritable, Text, Text, Text] {
 
-    override def reduce(key: IntWritable, values: java.lang.Iterable[Text], context: Reducer[IntWritable, Text, IntWritable, Text]#Context): Unit = {
+    override def reduce(key: IntWritable, values: java.lang.Iterable[Text], context: Reducer[IntWritable, Text, Text, Text]#Context): Unit = {
       val scalaValues = values.asScala
       val topSimilarities = mutable.PriorityQueue.empty[(Int, Float)](Ordering.by[(Int, Float), Float](_._2).reverse)
 
@@ -71,13 +56,14 @@ object SimilarityMR {
       }
 
       val top5List = topSimilarities.toList.sortBy(-_._2)
-      val (_, tokenEmbeddingsMap) = getTokenEmbeddings
+      val (_, tokenEmbeddingsMap) = TokenEmbeddings.getTokenEmbeddings
+      val (all_tokens, tokenWordings) = TokenWordings.getTokenWordings
 
       val outputStr = top5List.map { case (token2, sim) =>
-        s"$token2:$sim"
+        s"${tokenWordings(token2)}:$token2:$sim"
       }.mkString(" ")
 
-      context.write(key, new Text(outputStr))
+      context.write(new Text(s"${tokenWordings(key.get())}:${key.get()}"), new Text(outputStr))
     }
   }
 
@@ -107,7 +93,7 @@ object SimilarityRunner {
     val outputPath = "./similarity_output"
 
     // Create input file with token:embedding format
-    val (allTokens, embeddingsHashMap) = SimilarityMR.getTokenEmbeddings
+    val (allTokens, embeddingsHashMap) = TokenEmbeddings.getTokenEmbeddings
     val inputFile = new File(inputPath)
     val writer = new PrintWriter(inputFile)
     allTokens.foreach { token =>
