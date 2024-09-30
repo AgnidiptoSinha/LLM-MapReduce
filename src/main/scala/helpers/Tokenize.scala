@@ -13,10 +13,10 @@ class Tokenize {
     (encoding, tokenIds)
   }
 
-  def getTokens(input: String) : String = {
+  def getTokens(input: String): Seq[Int] = {
 
     val tokenIds = encoding.encode(input).toArray.toSeq
-    tokenIds.head.toString
+    tokenIds
   }
 
   def deTokenize(input: IntArrayList) : String = {

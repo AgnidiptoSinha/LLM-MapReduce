@@ -37,10 +37,13 @@ object main {
 
     println(windows)
 
-    // Step 2: Embedding learning with TensorFlow
-//    val embeddingsGenerator = new LearnEmbeddings()
-//    val embeddings = embeddingsGenerator.getEmbeddings(windows, vocabSize)
+//     Step 2: Embedding learning with TensorFlow
+    val embeddingsGenerator = new LearnEmbeddings()
+    val embeddings = embeddingsGenerator.getEmbeddings(windows, vocabSize)
 
+    println(embeddings)
+
+    
   }
 
 }

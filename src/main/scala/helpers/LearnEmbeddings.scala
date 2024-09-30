@@ -11,7 +11,7 @@ import scala.util.Random
 
 class LearnEmbeddings {
 
-  def getEmbeddings(windows: Seq[Seq[Int]], vocabSize: Int): TFloat32 = {
+  def getEmbeddings(windows: Seq[Seq[Int]], vocabSize: Int): Seq[Seq[Float]] = {
     val embeddingDim = 10 // Arbitrary embedding size, adjust as needed
     val initialLearningRate = 0.01f
     val decayRate = 0.96f
@@ -60,7 +60,7 @@ class LearnEmbeddings {
       val trainOp = tf.train.applyGradientDescent(randomEmbeddings, learningRatePh, gradients.dy(0).asInstanceOf[Operand[TFloat32]])
 
       // Training loop
-      val numEpochs = 50000
+      val numEpochs = 500
       val (centerWords, contextWords, negativeWords) = createTrainingData(windows, vocabSize)
 
       var bestLoss = Float.MaxValue
@@ -123,9 +123,13 @@ class LearnEmbeddings {
     (centerWords, contextWords, negativeWords)
   }
 
-  def extractEmbeddings(session: Session, randomEmbeddings: Variable[TFloat32], vocabSize: Int, embeddingDim: Int): TFloat32 = {
+  def extractEmbeddings(session: Session, randomEmbeddings: Variable[TFloat32], vocabSize: Int, embeddingDim: Int): Seq[Seq[Float]] = {
     val learnedEmbeddings = session.runner().fetch(randomEmbeddings).run().get(0).asInstanceOf[TFloat32]
 
+    // Print the shape
+    println(learnedEmbeddings.shape())
+    println("Vocab Size ", vocabSize)
+    println("Dimension ", embeddingDim)
     // Print a few learned embeddings
     println("Learned embeddings for first 3 tokens:")
     for (i <- 0 until math.min(3, vocabSize)) {
@@ -135,6 +139,13 @@ class LearnEmbeddings {
       println(s"Token $i: ${embedding.mkString("[", ", ", ", ...")}")
     }
 
-    learnedEmbeddings
+    val tokenEmbeddings = for (i <- 0 until vocabSize) yield {
+      val embedding = for (j <- 0 until embeddingDim) yield {
+        learnedEmbeddings.getFloat(i.toLong, j.toLong)
+      }
+      embedding.toSeq
+    }
+
+    tokenEmbeddings
   }
 }
