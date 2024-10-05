@@ -1,4 +1,4 @@
-package helpers
+package utils
 
 import breeze.linalg.{DenseVector, norm}
 

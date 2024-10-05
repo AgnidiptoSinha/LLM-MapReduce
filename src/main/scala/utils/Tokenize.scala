@@ -1,4 +1,4 @@
-package helpers
+package utils
 
 import com.knuddels.jtokkit.Encodings
 import com.knuddels.jtokkit.api.{Encoding, IntArrayList, ModelType}

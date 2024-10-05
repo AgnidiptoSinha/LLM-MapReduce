@@ -1,21 +1,26 @@
-package helpers
+package utils
 
-import org.tensorflow.{Graph, Operand, Session}
+import org.slf4j.{Logger, LoggerFactory}
 import org.tensorflow.ndarray.Shape
 import org.tensorflow.op.Ops
 import org.tensorflow.op.core.{Placeholder, Variable}
 import org.tensorflow.types.{TFloat32, TInt32}
+import org.tensorflow.{Graph, Operand, Session}
+import com.typesafe.config.ConfigFactory
 
 import java.util
 import scala.util.Random
 
 class LearnEmbeddings {
 
+  private val logger: Logger = LoggerFactory.getLogger(this.getClass)
+
   def getEmbeddings(windows: Seq[Seq[Int]], vocabSize: Int): Seq[Seq[Float]] = {
-    val embeddingDim = 10 // Arbitrary embedding size, adjust as needed
-    val initialLearningRate = 0.01f
-    val decayRate = 0.96f
-    val decaySteps = 1000
+    val config = ConfigFactory.load()
+    val embeddingDim = config.getInt("myapp.embeddingDim") //500 // Arbitrary embedding size, adjust as needed
+    val initialLearningRate = config.getDouble("myapp.initialLearningRate").toFloat //0.01f
+    val decayRate =  config.getDouble("myapp.decayRate").toFloat //0.96f
+    val decaySteps = config.getInt("myapp.decaySteps") //1000
 
     val graph = new Graph()
     val session = new Session(graph)
@@ -60,12 +65,12 @@ class LearnEmbeddings {
       val trainOp = tf.train.applyGradientDescent(randomEmbeddings, learningRatePh, gradients.dy(0).asInstanceOf[Operand[TFloat32]])
 
       // Training loop
-      val numEpochs = 500
+      val numEpochs = config.getInt("myapp.epoch")  //500
       val (centerWords, contextWords, negativeWords) = createTrainingData(windows, vocabSize)
 
       var bestLoss = Float.MaxValue
       var patienceCounter = 0
-      val patience = 10 // Number of epochs to wait for improvement
+      val patience = config.getInt("myapp.patience") //10 // Number of epochs to wait for improvement
 
       for (epoch <- 1 to numEpochs) {
 
@@ -91,7 +96,7 @@ class LearnEmbeddings {
             .get(0)
             .asInstanceOf[TFloat32]
           val currentLoss = lossValue.getFloat()
-          println(f"Epoch $epoch, Loss: $currentLoss%.6f, Learning Rate: $learningRate%.6f")
+          logger.info(f"Epoch $epoch, Loss: $currentLoss%.6f, Learning Rate: $learningRate%.6f")
 
           // Early stopping check
           if (currentLoss < bestLoss) {
@@ -102,7 +107,7 @@ class LearnEmbeddings {
           }
 
           if (patienceCounter >= patience) {
-            println(s"Early stopping at epoch $epoch")
+            logger.info(s"Early stopping at epoch $epoch")
             extractEmbeddings(session, randomEmbeddings, vocabSize, embeddingDim)
           }
         }
@@ -128,15 +133,15 @@ class LearnEmbeddings {
 
     // Print the shape
     println(learnedEmbeddings.shape())
-    println("Vocab Size ", vocabSize)
-    println("Dimension ", embeddingDim)
+    logger.info("Vocab Size ", vocabSize)
+    logger.info("Dimension ", embeddingDim)
     // Print a few learned embeddings
-    println("Learned embeddings for first 3 tokens:")
+    logger.info("Learned embeddings for first 3 tokens:")
     for (i <- 0 until math.min(3, vocabSize)) {
       val embedding = for (j <- 0 until math.min(5, embeddingDim)) yield {
         learnedEmbeddings.getFloat(i.toLong, j.toLong)
       }
-      println(s"Token $i: ${embedding.mkString("[", ", ", ", ...")}")
+      logger.info(s"Token $i: ${embedding.mkString("[", ", ", ", ...")}")
     }
 
     val tokenEmbeddings = for (i <- 0 until vocabSize) yield {
