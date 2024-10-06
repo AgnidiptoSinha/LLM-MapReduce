@@ -43,7 +43,7 @@ object EmbeddingsHelper {
           val inputStream = fs.open(path)
           val reader = new BufferedReader(new InputStreamReader(inputStream))
           try {
-            var line: String = null
+            var line: String = null // line being read repeatedly, hence var is used here
             while ({line = reader.readLine(); line != null}) {
               line.split("\t", 2) match {
                 case Array(_, tokenString) if tokenString.trim.nonEmpty =>
@@ -97,7 +97,7 @@ object EmbeddingsHelper {
     }.toArray
 
     try {
-      var tokenCount = 0L
+      var tokenCount = 0L // tokenCount is being updated as it reads the files
       val tokenBuilder = new StringBuilder()
 
       Iterator.continually(reader.read()).takeWhile(_ != -1).foreach { char =>

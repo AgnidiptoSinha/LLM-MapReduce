@@ -43,7 +43,7 @@ object WordFrequencyMR {
     private val reducerLogger: Logger = LoggerFactory.getLogger(this.getClass)
 
     override def reduce(key: IntWritable, values: Iterable[IntWritable], context: Reducer[IntWritable, IntWritable, Text, Text]#Context): Unit = {
-      var sum = 0
+      var sum = 0 // var used being sum is being calculated. So has to be mutable
       val tokenId = key.get()
 
       values.asScala.foreach { value =>

@@ -93,7 +93,7 @@ object SimilarityMR {
     val conf = new Configuration()
 //    conf.set("mapreduce.job.reduces", "5")
 
-    var fs: FileSystem = null
+    var fs: FileSystem = null //var used because hdfs being closed prematurely, so had to declare it beforehand before initializing
     try {
       fs = FileSystem.get(conf)
 

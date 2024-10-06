@@ -36,12 +36,12 @@ object ShardingText {
       }.toArray
 
       try {
-        var globalLineNumber = 0L
+        var globalLineNumber = 0L //var used because globalLineNumber is being updated and written into the files repeatedly
         inputFiles.foreach { inputFile =>
           val input = fs.open(inputFile)
           val reader = new BufferedReader(new InputStreamReader(input))
           try {
-            var line: String = null
+            var line: String = null // var used being line is being read continuously
             while ({line = reader.readLine(); line != null}) {
               val shardIndex = (globalLineNumber % numShards).toInt
               writers(shardIndex).write(s"$globalLineNumber\t$line\n")

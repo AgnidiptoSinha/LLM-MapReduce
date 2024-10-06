@@ -68,8 +68,8 @@ class LearnEmbeddings {
       val numEpochs = config.getInt("myapp.epoch")  //500
       val (centerWords, contextWords, negativeWords) = createTrainingData(windows, vocabSize)
 
-      var bestLoss = Float.MaxValue
-      var patienceCounter = 0
+      var bestLoss = Float.MaxValue // var used because best Loss is being updated everytime a minimum loss occurs
+      var patienceCounter = 0 // var used being patiencecounter is being updated everytime bestLoss is occuring
       val patience = config.getInt("myapp.patience") //10 // Number of epochs to wait for improvement
 
       for (epoch <- 1 to numEpochs) {
