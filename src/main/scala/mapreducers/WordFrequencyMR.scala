@@ -13,7 +13,7 @@ import org.slf4j.{Logger, LoggerFactory}
 import java.lang.Iterable
 import collection.JavaConverters._
 
-object WordTokenizerMR {
+object WordFrequencyMR {
   private val logger: Logger = LoggerFactory.getLogger(this.getClass)
 
   class TokenizerMapper extends Mapper[LongWritable, Text, IntWritable, IntWritable] {
@@ -67,7 +67,6 @@ object WordTokenizerMR {
     val configuration = new Configuration()
     configuration.set("mapred.textoutputformat.separator", " ")
     configuration.set("mapreduce.output.textoutputformat.separator", " ")
-    configuration.set("mapreduce.job.reduces", "5")
 
     val job = Job.getInstance(configuration, "word count")
     job.setJarByClass(this.getClass)
@@ -79,7 +78,7 @@ object WordTokenizerMR {
     job.setOutputValueClass(classOf[Text])
 
     job.setInputFormatClass(classOf[NLineInputFormat])
-    NLineInputFormat.setNumLinesPerSplit(job, 1000)
+    NLineInputFormat.setNumLinesPerSplit(job, 10000)
 
     FileInputFormat.addInputPath(job, new Path(inputPath))
     FileOutputFormat.setOutputPath(job, new Path(outputPath))
@@ -97,21 +96,21 @@ object WordTokenizerMR {
   }
 }
 
-object WordTokenizerRunner {
+object WordFrequencyRunner {
   private val logger: Logger = LoggerFactory.getLogger(this.getClass)
 
   def main(args: Array[String]): Unit = {
     if (args.length != 2) {
       logger.error("Incorrect number of arguments provided")
-      logger.error("Usage: WordCountRunner <input path> <output path>")
+      logger.error("Usage: WordFrequencyRunner <input path> <output path>")
       System.exit(1)
     }
 
     val inputPath = args(0)
     val outputPath = args(1)
 
-    logger.info(s"Starting WordTokenizerRunner with input path: $inputPath and output path: $outputPath")
-    val success = WordTokenizerMR.runJob(inputPath, outputPath)
+    logger.info(s"Starting WordFrequencyRunner with input path: $inputPath and output path: $outputPath")
+    val success = WordFrequencyMR.runJob(inputPath, outputPath)
     if (success) {
       logger.info("Job completed successfully")
     } else {

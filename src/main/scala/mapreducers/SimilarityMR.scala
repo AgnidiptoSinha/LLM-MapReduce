@@ -1,17 +1,17 @@
 package mapreducers
 
+import com.knuddels.jtokkit.api.IntArrayList
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{IntWritable, Text}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat
 import org.apache.hadoop.mapreduce.{Job, Mapper, Reducer}
-import utils.{Statistics, TokenEmbeddings, TokenWordings}
+import utils.{Statistics, TokenEmbeddings, Tokenize}
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 object SimilarityMR {
@@ -53,6 +53,9 @@ object SimilarityMR {
 
   class SimilarityReducer extends Reducer[IntWritable, Text, Text, Text] {
 
+//    private val reducerLogger: Logger = LoggerFactory.getLogger(this.getClass)
+    private val Tokenizer = new Tokenize()
+
     override def reduce(key: IntWritable, values: java.lang.Iterable[Text], context: Reducer[IntWritable, Text, Text, Text]#Context): Unit = {
       val scalaValues = values.asScala
       val topSimilarities = mutable.PriorityQueue.empty[(Int, Float)](Ordering.by[(Int, Float), Float](_._2).reverse)
@@ -69,20 +72,26 @@ object SimilarityMR {
       }
 
       val top5List = topSimilarities.toList.sortBy(-_._2)
-      val (all_tokens, tokenWordings) = TokenWordings.getTokenWordings("/merged_tokens")
 
       val outputStr = top5List.map { case (token2, sim) =>
-        s"${tokenWordings(token2)}:$token2:$sim"
+        val tokenArrayList = new IntArrayList()
+        tokenArrayList.add(token2)
+        val wording = Tokenizer.deTokenize(tokenArrayList)
+        s"$wording:$token2:$sim"
       }.mkString(" ")
 
-      context.write(new Text(s"${tokenWordings(key.get())}:${key.get()}"), new Text(outputStr))
+      val keyArrayList = new IntArrayList()
+      keyArrayList.add(key.get())
+      val keyWording = Tokenizer.deTokenize(keyArrayList)
+      context.write(new Text(s"$keyWording:${key.get()}"), new Text(outputStr))
+
     }
   }
 
   def runJob(inputPath: String, outputPath: String): Boolean = {
     logger.info(s"Starting job with input path: $inputPath, output path: $outputPath")
     val conf = new Configuration()
-    conf.set("mapreduce.job.reduces", "5")
+//    conf.set("mapreduce.job.reduces", "5")
 
     var fs: FileSystem = null
     try {

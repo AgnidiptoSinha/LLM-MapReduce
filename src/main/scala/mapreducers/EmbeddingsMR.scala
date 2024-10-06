@@ -75,7 +75,7 @@ object EmbeddingsMR {
     logger.info(s"Starting job with input path: $inputPath, output path: $outputPath")
 
     val configuration = new Configuration()
-    configuration.set("mapreduce.job.reduces", "5")
+//    configuration.set("mapreduce.job.reduces", "5")
 
     val job = Job.getInstance(configuration, "embeddings generator")
     job.setJarByClass(this.getClass)

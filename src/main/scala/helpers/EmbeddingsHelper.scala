@@ -1,73 +1,163 @@
 package helpers
 
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.slf4j.{Logger, LoggerFactory}
 
 import java.io.{BufferedWriter, OutputStreamWriter}
-import scala.util.{Failure, Success, Try}
-import utils.TokenWordings
+import org.apache.hadoop.io.IOUtils
+
+import java.io.{BufferedReader, InputStreamReader}
 
 object EmbeddingsHelper {
 
   private val logger: Logger = LoggerFactory.getLogger(this.getClass)
 
-  def createShards(tokens: Seq[Int], numShards: Int): Seq[Seq[Int]] = {
-    val shardSize = Math.ceil(tokens.length.toDouble / numShards).toInt
-    tokens.grouped(shardSize).toSeq
-  }
+  def extractAndConcatenateTokens(inputPath: String, outputPath: String, fs: FileSystem): Unit = {
+    val inputDir = new Path(inputPath)
+    val outputDir = new Path(outputPath)
+    val outputFile = new Path(outputDir, "merged_output.txt")
 
-  def writeShardToFile(shard: Seq[Int], filename: String, fs: FileSystem): Unit = {
-    val outputPath = new Path(filename)
-    val outputStream = fs.create(outputPath)
+    // Ensure output directory exists
+    if (!fs.exists(outputDir)) {
+      fs.mkdirs(outputDir)
+    } else if (!fs.getFileStatus(outputDir).isDirectory) {
+      throw new IllegalArgumentException(s"$outputPath exists but is not a directory")
+    }
+
+    // Check if output file already exists
+    if (fs.exists(outputFile)) {
+      logger.warn(s"Output file $outputFile already exists. It will be overwritten.")
+      fs.delete(outputFile, false)
+    }
+
+    val outputStream = fs.create(outputFile)
     val writer = new BufferedWriter(new OutputStreamWriter(outputStream))
+
     try {
-      writer.write(shard.mkString(" "))
+      fs.listStatus(inputDir)
+        .filter(_.isFile)
+        .foreach { fileStatus =>
+          val path = fileStatus.getPath
+          val inputStream = fs.open(path)
+          val reader = new BufferedReader(new InputStreamReader(inputStream))
+          try {
+            var line: String = null
+            while ({line = reader.readLine(); line != null}) {
+              line.split("\t", 2) match {
+                case Array(_, tokenString) if tokenString.trim.nonEmpty =>
+                  val tokens = tokenString.trim.split("\\s+").flatMap(token =>
+                    try {
+                      Some(token.toInt.toString)
+                    } catch {
+                      case _: NumberFormatException =>
+                        logger.warn(s"Skipping non-integer token: $token")
+                        None
+                    }
+                  )
+                  writer.write(tokens.mkString(" "))
+                  writer.write(" ")
+                case _ => // Skip lines that don't match the expected format or are empty
+              }
+            }
+          } finally {
+            IOUtils.closeStream(reader)
+          }
+        }
     } finally {
       writer.close()
+    }
+
+    logger.info(s"Merged tokens written to $outputFile")
+  }
+
+  def createShards(inputPath: String, outputDir: String, numShards: Int, fs: FileSystem): Unit = {
+    val inputFile = new Path(inputPath)
+    val outputPath = new Path(outputDir)
+
+    // Ensure output directory exists
+    if (!fs.exists(outputPath)) {
+      fs.mkdirs(outputPath)
+    } else if (!fs.getFileStatus(outputPath).isDirectory) {
+      throw new IllegalArgumentException(s"$outputDir exists but is not a directory")
+    }
+
+    val inputStream = fs.open(inputFile)
+    val reader = new BufferedReader(new InputStreamReader(inputStream))
+
+    val writers = (0 until numShards).map { i =>
+      val shardPath = new Path(outputPath, s"shard_$i.txt")
+      if (fs.exists(shardPath)) {
+        logger.warn(s"Shard file $shardPath already exists. It will be overwritten.")
+        fs.delete(shardPath, false)
+      }
+      val outputStream = fs.create(shardPath)
+      new BufferedWriter(new OutputStreamWriter(outputStream))
+    }.toArray
+
+    try {
+      var tokenCount = 0L
+      val tokenBuilder = new StringBuilder()
+
+      Iterator.continually(reader.read()).takeWhile(_ != -1).foreach { char =>
+        char.toChar match {
+          case ' ' =>
+            if (tokenBuilder.nonEmpty) {
+              val shardIndex = (tokenCount % numShards).toInt
+              writers(shardIndex).write(tokenBuilder.toString())
+              writers(shardIndex).write(' ')
+              tokenCount += 1
+              tokenBuilder.clear()
+            }
+          case c => tokenBuilder.append(c)
+        }
+      }
+
+      // Handle the last token if exists
+      if (tokenBuilder.nonEmpty) {
+        val shardIndex = (tokenCount % numShards).toInt
+        writers(shardIndex).write(tokenBuilder.toString())
+        writers(shardIndex).write(' ')
+      }
+
+      logger.info(s"Created $numShards shards with a total of $tokenCount tokens")
+    } finally {
+      IOUtils.closeStream(reader)
+      writers.foreach(IOUtils.closeStream)
     }
   }
 
   def main(args: Array[String]): Unit = {
-    if(args.length != 2) {
-      logger.error("Usage: EmbeddingsHelper.main /merged_tokens /embeddings_input")
+    val config: Config = ConfigFactory.load()
+    if(args.length != 3) {
+      logger.error("Usage: EmbeddingsHelper.main /tokenizer_output /merged_tokens /embeddings_input")
       System.exit(1)
     }
 
-    val mergedTokens = args(0)
-    val embeddingsInput = args(1)
+    val tokenizerOutput = args(0)
+    val mergedTokens = args(1)
+    val embeddingsInput = args(2)
 
     val conf = new Configuration()
     val fs = FileSystem.get(conf)
+    val numShards = config.getInt("myapp.numShardsEmbeddings")
 
     try {
-      val (tokens, _) = TokenWordings.getTokenWordings(mergedTokens)
-      logger.info(s"Extracted ${tokens.length} tokens")
+      // Step 1: Extract and concatenate tokens
+      logger.info(s"Extracting and concatenating tokens from $tokenizerOutput to $mergedTokens")
+      extractAndConcatenateTokens(tokenizerOutput, mergedTokens, fs)
 
-      val numShards = 5
+      // Step 2: Create shards
+      logger.info(s"Creating $numShards shards in $embeddingsInput")
+      createShards(s"$mergedTokens/merged_output.txt", embeddingsInput, numShards, fs)
 
-      val inputDir = new Path(embeddingsInput)
-      if (!fs.exists(inputDir)) {
-        fs.mkdirs(inputDir)
-      }
-
-      // Create shards
-      val shards = createShards(tokens, numShards)
-
-      shards.foreach { shard =>
-        logger.info("Shard length", shard.length)
-      }
-
-      // Create input files for each shard
-      shards.zipWithIndex.foreach { case (shard, index) =>
-        val inputFile = new Path(inputDir, s"input_$index.txt")
-        writeShardToFile(shard, inputFile.toString, fs)
-      }
-
+      logger.info("Token extraction, merging, and sharding completed successfully")
     } catch {
       case e: Exception =>
-        logger.error(s"An error occurred in main: ${e.getMessage}")
+        logger.error(s"An error occurred: ${e.getMessage}", e)
         e.printStackTrace()
+        System.exit(1)
     } finally {
       fs.close()
     }
